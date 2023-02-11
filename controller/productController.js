@@ -143,7 +143,7 @@ export const productByCategory = async (req, res) => {
               "products":0,
             }
           }, {
-              $limit: 5
+              $limit: 4
             }
         ])  
         if (!data) return res.status(204).send("data not found")
@@ -200,5 +200,62 @@ export const getFilteredProducts = async(req, res) =>{
 
   } catch (error) {
     res.status(500).json({ error: error.message})
+  }
+}
+
+
+export const getPaginateProducts =async (req, res) => {
+  const { id, page } = req.params;
+  const limit = 4;
+  const skip = (page * limit) - limit;
+  try {
+    const data =await Category.aggregate([
+      {
+        $match: {
+          _id: Types.ObjectId(id),
+        }
+      },
+      {
+        $lookup :{
+          from: 'products', 
+          localField: '_id', 
+          foreignField: 'categoryId', 
+          as: 'products'
+        }
+      }, {
+        $project: {
+          _id: 0, 
+          category:1,
+          "products": 1
+        }
+      }, {
+        $unwind: {
+          path: '$products'
+        }
+    },
+    {
+        $replaceRoot: {
+          newRoot: {
+            $mergeObjects: ["$products","$$ROOT", ] 
+          }
+        }
+    }
+    , {
+      $project: {
+        "products":0,
+      }
+      }, {
+        $skip:skip
+      },
+      {
+        $limit: limit
+      }
+  ])  
+  if (!data) return res.status(204).send("data not found")
+  res.status(200).json(data)
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: error.message})
+    
   }
 }
