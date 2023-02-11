@@ -42,10 +42,13 @@ export const geAllProduct = async (req, res) => {
 }
 
 export const deleteProduct = async (req, res) => {
+    //category id from request params
     const categoryId = req.params.id
     try {
+        // product find from database
         const data = await Product.findOne({_id: categoryId })
         if (!data) throw new Error("Product not found")
+        //change product status, record status equal to one mean delete (soft delete)
         data.recordStatus = 2
         const result = await data.save();
         if(!result) throw new Error("Product not deleted")
@@ -60,6 +63,7 @@ export const deleteProduct = async (req, res) => {
 
 export const latestProduct = async (req, res) => { 
     try {
+        //get latest product data from database
         const data=await Product.aggregate([
             {
               $match: {
@@ -97,10 +101,12 @@ export const latestProduct = async (req, res) => {
 
 //get all products by category
 
-export const productByCategory = async(req, res) => {
+export const productByCategory = async (req, res) => {
+         //check category id
     const categoryId = req.params.id;
     if (!categoryId) return res.status(404).send("category not found");
     try {
+        // find all products by category from database
         const data =await Category.aggregate([
             {
               $match: {
@@ -117,23 +123,82 @@ export const productByCategory = async(req, res) => {
             }, {
               $project: {
                 _id: 0, 
+                category:1,
                 "products": 1
               }
             }, {
               $unwind: {
                 path: '$products'
               }
-            }, {
+          },
+          {
               $replaceRoot: {
-                'newRoot': '$products'
+                newRoot: {
+                  $mergeObjects: ["$products","$$ROOT", ] 
+                }
               }
-            }, {
-              $limit: 10
+          }
+          , {
+            $project: {
+              "products":0,
             }
-        ])
+          }, {
+              $limit: 5
+            }
+        ])  
         if (!data) return res.status(204).send("data not found")
         res.status(200).json(data)
     } catch (error) {
         res.status(500).json({message:error.message})
     }
+}
+
+
+//filtering products by user aspects
+export const getFilteredProducts = async(req, res) =>{
+  const categoryId = req.params.id;
+  const type = req.params.type;
+  var sort;
+  if (type === "AtoZ") {
+    sort = {
+      '$sort': {
+        'title': 1
+      }
+    }
+  }
+  else if (type === "ZtoA") {
+    sort = {
+      '$sort': {
+        'title': -1
+      }
+    }
+  }
+  else if (type === "LowToHigh") {
+    sort = {
+      '$sort': {
+        'price': 1
+      }
+    }
+  }
+  else if (type === "HighToLow") { 
+    sort={'$sort': {
+      'price': -1
+    }}
+  }
+  try {
+    const result = await Product.aggregate([[
+      {
+        '$match': {
+          'categoryId': Types.ObjectId(categoryId)
+        }
+      }, sort, {
+        '$limit': 10
+      }
+    ]])
+    if (!result) return result.status(204).send("data not found")
+    res.status(200).json(result)
+
+  } catch (error) {
+    res.status(500).json({ error: error.message})
+  }
 }
